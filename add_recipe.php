@@ -6,7 +6,7 @@ if (!isset($_SESSION['username'])) {
 }
 $username = $_SESSION['username'];
 
-// db.php - Database Connection
+
 $host = "localhost";
 $user = "root"; 
 $pass = "";     
@@ -17,14 +17,14 @@ if ($conn->connect_error) {
   die("Connection failed: " . $conn->connect_error);
 }
  
-// Handle Form Submission
+
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
   $name = $_POST['recipeName'];
   $desc = $_POST['description'];
   $ing  = $_POST['ingredients'];
   $inst = $_POST['instructions'];
 
-  // File upload
+
   $targetDir = "uploads/";
   if (!is_dir($targetDir)) mkdir($targetDir);
   $fileName = time() . "_" . basename($_FILES["recipeImage"]["name"]);
@@ -37,7 +37,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 }
 }
 
-// Fetch Recipes
+
 $recipes = $conn->query("SELECT * FROM recipes ORDER BY id DESC");
 ?>
 
@@ -48,7 +48,6 @@ $recipes = $conn->query("SELECT * FROM recipes ORDER BY id DESC");
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>TastyBites | Add Recipe</title>
 
-    <!-- ✅ Global Styles -->
     <link rel="stylesheet" href="assets/style.css">
     <link rel="stylesheet" href="assets/media.css">
     <link
@@ -62,18 +61,18 @@ $recipes = $conn->query("SELECT * FROM recipes ORDER BY id DESC");
     />
 
     <style>
-    /* Hero carousel */
+
     .carousel-item img { object-fit: cover; height: 450px; border-radius: 12px; }
     .carousel-caption { background: rgba(0,0,0,0.55); padding: 1rem; border-radius: 10px; }
     .carousel-caption h3 { font-family: 'Playfair Display', serif; font-size: 2rem; font-weight: bold; color: #f9c28d; }
     .carousel-caption p { font-size: 1rem; color: #fff; }
 
-    /* Recipe cards */
+
     .recipe-card { border: none; border-radius: 12px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); transition: transform 0.2s ease; }
     .recipe-card:hover { transform: translateY(-5px); }
     .recipe-card img { border-top-left-radius: 12px; border-top-right-radius: 12px; }
 
-    /* Upload area */
+
     .upload-box {
       border: 2px dashed #ccc;
       border-radius: 10px;
@@ -89,7 +88,7 @@ $recipes = $conn->query("SELECT * FROM recipes ORDER BY id DESC");
   </head>
   <body class="position-relative">
 
-    <!-- ✅ Navbar -->
+
     <nav class="px-5 py-2 d-flex nav-xxl align-items-center justify-content-between position-fixed top-0 z-3 bg-light-subtle w-100">
       <div class="flex-row d-flex align-items-center gap-5 w-75">
         <div class="flex-row d-flex align-items-center gap-4 title-div">
@@ -110,7 +109,7 @@ $recipes = $conn->query("SELECT * FROM recipes ORDER BY id DESC");
       </div>
     </nav>
 
-    <!-- Hero Carousel -->
+
     <div id="heroCarousel" class="carousel slide container py-5 mt-5" data-bs-ride="carousel">
       <div class="carousel-inner">
         <?php 
@@ -139,7 +138,7 @@ $recipes = $conn->query("SELECT * FROM recipes ORDER BY id DESC");
       </button>
     </div>
 
-    <!-- Uploaded Recipes -->
+
     <section class="container py-5">
       <h3 class="mb-3">Uploaded Recipes</h3>
       <div class="row g-3">
@@ -159,7 +158,6 @@ $recipes = $conn->query("SELECT * FROM recipes ORDER BY id DESC");
       </div>
     </section>
 
-    <!-- Add Recipe Form -->
     <section class="container py-5">
       <h3 class="mb-3">Add/Upload your Recipes</h3>
       <form method="POST" enctype="multipart/form-data">
@@ -195,7 +193,7 @@ $recipes = $conn->query("SELECT * FROM recipes ORDER BY id DESC");
       </form>
     </section>
 
-    <!-- ✅ Scripts -->
+
     <script>
     function previewImage(event) {
       const preview = document.getElementById('preview');
