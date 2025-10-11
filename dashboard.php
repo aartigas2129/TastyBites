@@ -1,5 +1,6 @@
 <?php
 session_start();
+
 if (!isset($_SESSION['username'])) {
     header("Location: login.php");
     exit();
@@ -10,15 +11,30 @@ $username = $_SESSION['username'];
 $host = "localhost";
 $user = "root";
 $pass = "";
-$db   = "user_management";
+$db   = "tastybytesdb";
 
 $conn = new mysqli($host, $user, $pass, $db);
 if ($conn->connect_error) {
   die("Connection failed: " . $conn->connect_error);
 }
 
+// Handle favorite toggle
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['toggle_favorite'])) {
+    $recipeId = intval($_POST['recipe_id']);
+    $currentStatus = intval($_POST['current_status']);
+    $newStatus = $currentStatus ? 0 : 1;
+
+    $stmt = $conn->prepare("UPDATE recipes SET is_favorite = ? WHERE id = ?");
+    $stmt->bind_param("ii", $newStatus, $recipeId);
+    $stmt->execute();
+    $stmt->close();
+}
+
 // Fetch recipes
 $recipes = $conn->query("SELECT * FROM recipes ORDER BY id DESC");
+
+// Fetch only favorites for bottom section
+$favorites = $conn->query("SELECT * FROM recipes WHERE is_favorite = 1 ORDER BY id DESC");
 ?>
 <!DOCTYPE html>
 <html lang="en" style="scroll-behavior: smooth">
@@ -30,6 +46,20 @@ $recipes = $conn->query("SELECT * FROM recipes ORDER BY id DESC");
   <link rel="stylesheet" href="assets/media.css">
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600&family=Felipa&display=swap" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.7/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"/>
+  <style>
+    .favorite-btn {
+      border: none;
+      background: none;
+      cursor: pointer;
+      font-size: 1.3rem;
+      color: #aaa;
+      transition: color 0.2s;
+    }
+    .favorite-btn.filled {
+      color: red;
+    }
+  </style>
 </head>
 <body>
   <!-- Navigation -->
@@ -85,12 +115,43 @@ $recipes = $conn->query("SELECT * FROM recipes ORDER BY id DESC");
         <div class="col-md-3">
           <div class="card recipe-card h-100">
             <img src="<?php echo $row['image']; ?>" class="card-img-top" alt="Recipe Image">
-            <div class="card-body">
-              <h5><?php echo htmlspecialchars($row['recipe_name']); ?></h5>
-              <p><?php echo htmlspecialchars($row['description']); ?></p>
+            <div class="card-body d-flex flex-column justify-content-between">
+              <div>
+                <h5><?php echo htmlspecialchars($row['recipe_name']); ?></h5>
+                <p><?php echo htmlspecialchars($row['description']); ?></p>
+              </div>
+              <!-- Favorite Heart Button -->
+              <form method="POST" style="text-align:right;">
+                <input type="hidden" name="recipe_id" value="<?php echo $row['id']; ?>">
+                <input type="hidden" name="current_status" value="<?php echo $row['is_favorite'] ?? 0; ?>">
+                <button type="submit" name="toggle_favorite" class="favorite-btn <?php echo ($row['is_favorite'] ?? 0) ? 'filled' : ''; ?>">
+                  <i class="fa-solid fa-heart"></i>
+                </button>
+              </form>
             </div>
           </div>
         </div>
+      <?php } ?>
+    </div>
+  </section>
+
+  <!-- Favorite Recipes Section -->
+  <section class="favorites py-5 bg-light" style="max-width: 100%; padding-left: 4rem; padding-right: 4rem;">
+    <h1 class="fs-3">My Favorite Recipes</h1>
+    <div class="row g-3">
+      <?php if ($favorites->num_rows > 0) {
+        while ($fav = $favorites->fetch_assoc()) { ?>
+        <div class="col-md-3">
+          <div class="card recipe-card h-100 border-warning">
+            <img src="<?php echo $fav['image']; ?>" class="card-img-top" alt="Recipe Image">
+            <div class="card-body">
+              <h5><?php echo htmlspecialchars($fav['recipe_name']); ?></h5>
+              <p><?php echo htmlspecialchars($fav['description']); ?></p>
+            </div>
+          </div>
+        </div>
+      <?php }} else { ?>
+        <p class="px-3">You have no favorite recipes yet.</p>
       <?php } ?>
     </div>
   </section>

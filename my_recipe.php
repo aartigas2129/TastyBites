@@ -1,5 +1,6 @@
 <?php
 session_start();
+include 'config.php';
 if (!isset($_SESSION['username'])) {
   header("Location: login.php");
   exit();
@@ -10,7 +11,7 @@ $username = $_SESSION['username'];
 $host = "localhost";
 $user = "root";
 $pass = "";
-$db   = "user_management";
+$db   = "tastybytesdb";
 $conn = new mysqli($host, $user, $pass, $db);
 if ($conn->connect_error) die("Connection failed: " . $conn->connect_error);
 
