@@ -150,7 +150,7 @@ $recipes = $conn->query("SELECT * FROM recipes ORDER BY id DESC");
       <label class="form-label">Instructions</label>
       <textarea class="form-control" name="instructions" rows="6" maxlength="1000" required></textarea>
     </div>
-    <button type="submit" class="btn btn-primary">Submit Recipe</button>
+    <button type="submit" class="btn" style="background-color: #F09D58; border-color: #F09D58; color: #fff;">Submit Recipe</button>
   </form>
 </section>
 
