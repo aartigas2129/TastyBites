@@ -40,7 +40,7 @@ $result = $stmt->get_result();
       <div class="flex-row d-flex align-items-center gap-4 title-div">
         <h1>TastyBites</h1>
         <div class="search-div px-2">
-          <input type="text" name="search" id="search-bar" placeholder="Search your recipes..."/>
+          <input type="text" name="search" id="search-bar"/>
           <img src="assets/icons/search-alt-svgrepo-com.svg" alt="Search" class="search"/>
         </div>
       </div>
