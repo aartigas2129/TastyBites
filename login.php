@@ -39,10 +39,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         $stmt->close();
-    }  
+    }   
 }
 
-$conn->close();
+// This should be at the end of the script or removed if you use include 'config.php'
+// $conn->close();
 ?>
 
 <!DOCTYPE html>
@@ -51,9 +52,7 @@ $conn->close();
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>TastyBites - Login</title>
-    <!-- Bootstrap 5 CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
-    <!-- Google Fonts -->
     <link href="https://fonts.googleapis.com/css2?family=Felipa:wght@400&family=Poppins:wght@300;400;500;600&display=swap" rel="stylesheet">
 
      <style>
@@ -313,11 +312,10 @@ $conn->close();
 </head>
 <body>
     <div class="login-container">
-        <!-- Left Panel -->
         <div class="left-panel">
             <div class="left-content">
                 <h1 class="brand-title">TastyBites</h1>
-                <p class="welcome-text">Welcome!</p>
+                <p class="welcome-text">Welcome Back!</p>
                 
                 <div class="form-container">
                 <form id="loginForm" method="POST" action="">
@@ -348,7 +346,7 @@ $conn->close();
                     </div>
 
                     <?php if($error): ?>
-                        <div class="text-danger mb-2"><?php echo $error; ?></div>
+                        <div class="text-danger mb-2" style="font-size: 12px;"><?php echo $error; ?></div>
                     <?php endif; ?>
                     
                     <button type="submit" class="login-btn">Login</button>
@@ -361,19 +359,14 @@ $conn->close();
             </div>
         </div>
 
-        <!-- Right Panel -->
         <div class="right-panel">
             <h2 class="right-title">An unforgettable symphony of taste.</h2>
             <p class="right-description">
-                Lorem ipsum dolor sit amet, consectetuer adipiscing elit. Aenean commodo ligula eget dolor. Aenean massa. Cum 
-                sociis natoque penatibus et magnis dis parturient montes, nascetur ridiculus mus. Lorem ipsum dolor sit amet, 
-                consectetuer adipiscing elit. Aenean commodo ligula eget dolor. Aenean massa. Cum sociis natoque penatibus et 
-                magnis dis parturient montes, nascetur ridiculus mus.
+                Unlock a world of culinary inspiration. From quick weeknight dinners to show-stopping desserts, find thousands of trusted recipes to spark your creativity in the kitchen. Your next favorite meal is just a click away.
             </p>
         </div>
     </div>
 
-    <!-- Bootstrap 5 JS -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js" crossorigin="anonymous"></script>
 </body>
 </html>

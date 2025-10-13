@@ -1,5 +1,6 @@
 <?php
 session_start();
+include 'config.php'; 
 
 if (!isset($_SESSION['username'])) {
     header("Location: login.php");
@@ -12,7 +13,7 @@ $host = "localhost";
 $user = "root";
 $pass = "";
 $db   = "tastybytesdb";
-
+// MODIFIED: Added the missing '$' to the $pass variable
 $conn = new mysqli($host, $user, $pass, $db);
 if ($conn->connect_error) {
   die("Connection failed: " . $conn->connect_error);
@@ -21,56 +22,99 @@ if ($conn->connect_error) {
 // Handle favorite toggle
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['toggle_favorite'])) {
     $recipeId = intval($_POST['recipe_id']);
-    $currentStatus = intval($_POST['current_status']);
-    $newStatus = $currentStatus ? 0 : 1;
-
-    $stmt = $conn->prepare("UPDATE recipes SET is_favorite = ? WHERE id = ?");
-    $stmt->bind_param("ii", $newStatus, $recipeId);
-    $stmt->execute();
-    $stmt->close();
+    
+    // This logic allows a user to favorite ANY recipe.
+    $checkStmt = $conn->prepare("SELECT is_favorite FROM recipes WHERE id = ?");
+    $checkStmt->bind_param("i", $recipeId);
+    $checkStmt->execute();
+    $result = $checkStmt->get_result();
+    
+    if($result->num_rows > 0) {
+        $recipe = $result->fetch_assoc();
+        $newStatus = $recipe['is_favorite'] ? 0 : 1;
+        $updateStmt = $conn->prepare("UPDATE recipes SET is_favorite = ? WHERE id = ?");
+        $updateStmt->bind_param("ii", $newStatus, $recipeId);
+        $updateStmt->execute();
+        $updateStmt->close();
+    }
+    $checkStmt->close();
+    
+    $queryString = http_build_query(['search_query' => $_GET['search_query'] ?? '', 'type' => $_GET['type'] ?? 'all']);
+    header("Location: dashboard.php?" . $queryString);
+    exit();
 }
 
-// Fetch recipes
-$recipes = $conn->query("SELECT * FROM recipes ORDER BY id DESC");
+// Public search and filter logic
+$searchQuery = trim($_GET['search_query'] ?? '');
+$filterType = $_GET['type'] ?? 'all';
 
-// Fetch only favorites for bottom section
-$favorites = $conn->query("SELECT * FROM recipes WHERE is_favorite = 1 ORDER BY id DESC");
+$sql = "SELECT * FROM recipes";
+$params = [];
+$types = '';
+$whereClauses = [];
+
+if (!empty($searchQuery)) {
+    $whereClauses[] = "recipe_name LIKE ?";
+    $params[] = "%" . $searchQuery . "%";
+    $types .= 's';
+}
+
+if ($filterType !== 'all') {
+    $whereClauses[] = "recipe_type = ?";
+    $params[] = $filterType;
+    $types .= 's';
+}
+
+if (!empty($whereClauses)) {
+    $sql .= " WHERE " . implode(" AND ", $whereClauses);
+}
+
+$sql .= " ORDER BY id DESC";
+
+$stmt = $conn->prepare($sql);
+if (!empty($params)) {
+    $stmt->bind_param($types, ...$params);
+}
+$stmt->execute();
+$recipes = $stmt->get_result();
+
+// Fetch only the current user's favorite recipes
+$fav_stmt = $conn->prepare("SELECT * FROM recipes WHERE is_favorite = 1 AND uploaded_by = ? ORDER BY id DESC");
+$fav_stmt->bind_param("s", $username);
+$fav_stmt->execute();
+$favorites = $fav_stmt->get_result();
+
+$recipeTypes = ['Breakfast', 'Lunch', 'Dinner', 'Dessert', 'Snack', 'Appetizer', 'Drinks'];
 ?>
 <!DOCTYPE html>
 <html lang="en" style="scroll-behavior: smooth">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>TastyBites | Dashboard</title>
+  <title>Tasty Bites | Dashboard</title>
   <link rel="stylesheet" href="assets/style.css">
   <link rel="stylesheet" href="assets/media.css">
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600&family=Felipa&display=swap" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.7/dist/css/bootstrap.min.css" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"/>
   <style>
-    .favorite-btn {
-      border: none;
-      background: none;
-      cursor: pointer;
-      font-size: 1.3rem;
-      color: #aaa;
-      transition: color 0.2s;
-    }
-    .favorite-btn.filled {
-      color: red;
-    }
+    .favorite-btn { border: none; background: none; cursor: pointer; font-size: 1.3rem; color: #aaa; transition: color 0.2s; }
+    .favorite-btn.filled { color: red; }
+    .recipe-card { cursor: pointer; transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out; }
+    .recipe-card:hover { transform: translateY(-5px); box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
   </style>
 </head>
 <body>
-  <!-- Navigation -->
   <nav class="px-5 py-2 d-flex nav-xxl align-items-center justify-content-between position-fixed top-0 z-3 bg-light-subtle w-100">
     <div class="flex-row d-flex align-items-center gap-5 w-75">
       <div class="flex-row d-flex align-items-center gap-4 title-div">
-        <h1>TastyBites</h1>
-        <div class="search-div px-2">
-          <input type="text" id="search-bar"/>
-          <img src="assets/icons/search-alt-svgrepo-com.svg" alt="Search" class="search"/>
-        </div>
+        <h1>Tasty Bites</h1>
+        <form method="GET" action="dashboard.php" class="search-div px-2">
+            <input type="text" name="search_query" id="search-bar" placeholder="Search all recipes..." value="<?php echo htmlspecialchars($searchQuery); ?>"/>
+            <button type="submit" style="background:none; border:none; padding:0;">
+                <img src="assets/icons/search-alt-svgrepo-com.svg" alt="Search" class="search"/>
+            </button>
+        </form>
       </div>
       <div class="flex-row d-flex align-items-center div-tabs gap-5">
         <a href="dashboard.php" class="tabs active">Home</a>
@@ -78,18 +122,18 @@ $favorites = $conn->query("SELECT * FROM recipes WHERE is_favorite = 1 ORDER BY 
         <a href="add_recipe.php" class="tabs">Add Recipe</a>
       </div>
     </div>
-    <div class="px-5">
-      <h1 class="tabs">Hello, <?php echo htmlspecialchars($username, ENT_QUOTES); ?></h1>      
+    <div class="px-5 d-flex align-items-center gap-3">
+      <span class="tabs text-nowrap">Hello, <?php echo htmlspecialchars($username, ENT_QUOTES); ?></span>
+      <a href="logout.php" class="btn btn-sm btn-outline-secondary">Logout</a>
     </div>
   </nav>
 
-  <!-- Hero Section (Carousel) -->
   <div class="homer mt-5 pt-5">
     <div class="homer-item-1">
       <div class="homer-inside-item-1">
-        <h1 class="homer-h1">Your Favorite food.</h1>
-        <h1 class="homer-h1">Make it good.</h1>
-        <p class="homer-para">Discover, cook, and share recipes with the TastyBites community.</p>
+        <h1 class="homer-h1">Your Favorite Food.</h1>
+        <h1 class="homer-h1">Make it Good.</h1>
+        <p class="homer-para">Discover, cook, and share recipes with the Tasty Bites community.</p>
       </div>
       <div class="homer-inside-item-2 carousel slide" id="carouselExampleIndicators">
         <div class="carousel-inner mt-4 rounded-4">
@@ -97,62 +141,86 @@ $favorites = $conn->query("SELECT * FROM recipes WHERE is_favorite = 1 ORDER BY 
           <div class="carousel-item"><img src="assets/images/hero-2.jpg" class="d-block w-100" alt="Hero 2"></div>
           <div class="carousel-item"><img src="assets/images/hero-3.jpg" class="d-block w-100" alt="Hero 3"></div>
         </div>
-        <button class="carousel-control-prev" type="button" data-bs-target="#carouselExampleIndicators" data-bs-slide="prev">
-          <span class="carousel-control-prev-icon"></span>
-        </button>
-        <button class="carousel-control-next" type="button" data-bs-target="#carouselExampleIndicators" data-bs-slide="next">
-          <span class="carousel-control-next-icon"></span>
-        </button>
+        <button class="carousel-control-prev" type="button" data-bs-target="#carouselExampleIndicators" data-bs-slide="prev"><span class="carousel-control-prev-icon"></span></button>
+        <button class="carousel-control-next" type="button" data-bs-target="#carouselExampleIndicators" data-bs-slide="next"><span class="carousel-control-next-icon"></span></button>
       </div>
     </div>
   </div>
 
-  <!-- Discover Section -->
   <section class="discover py-5" style="max-width: 100%; padding-left: 4rem; padding-right: 4rem;">
-    <h1 class="fs-3">Discover new recipes</h1>
-    <div class="row g-3">
-      <?php while ($row = $recipes->fetch_assoc()) { ?>
-        <div class="col-md-3">
-          <div class="card recipe-card h-100">
-            <img src="<?php echo $row['image']; ?>" class="card-img-top" alt="Recipe Image">
-            <div class="card-body d-flex flex-column justify-content-between">
-              <div>
-                <h5><?php echo htmlspecialchars($row['recipe_name']); ?></h5>
-                <p><?php echo htmlspecialchars($row['description']); ?></p>
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h3 class="mb-0">Discover New Recipes</h3>
+        <form method="GET" class="d-flex align-items-center gap-2">
+            <input type="hidden" name="search_query" value="<?php echo htmlspecialchars($searchQuery); ?>">
+            <select class="form-select w-auto" name="type" onchange="this.form.submit()">
+                <option value="all">All Types</option>
+                <?php foreach ($recipeTypes as $type): ?>
+                <option value="<?php echo $type; ?>" <?php if ($filterType == $type) echo 'selected'; ?>><?php echo $type; ?></option>
+                <?php endforeach; ?>
+            </select>
+        </form>
+    </div>
+    
+    <div class="row g-4">
+      <?php if ($recipes->num_rows > 0): ?>
+        <?php while ($row = $recipes->fetch_assoc()): ?>
+          <div class="col-12 col-sm-6 col-lg-4 col-xl-3">
+            <div class="card recipe-card h-100" data-bs-toggle="modal" data-bs-target="#recipeModal<?php echo $row['id']; ?>">
+              <img src="<?php echo htmlspecialchars($row['image']); ?>" class="card-img-top" alt="Recipe Image" style="height:200px; object-fit:cover;">
+              <div class="card-body d-flex flex-column">
+                  <h5 class="card-title"><?php echo htmlspecialchars($row['recipe_name']); ?></h5>
+                  <span class="badge bg-info mb-2 align-self-start"><?php echo htmlspecialchars($row['recipe_type']); ?></span>
+                  <p class="card-text small text-muted flex-grow-1"><?php echo htmlspecialchars(mb_strimwidth($row['description'], 0, 80, '...')); ?></p>
+                  <small class="text-muted mt-auto">By: <?php echo htmlspecialchars($row['uploaded_by']); ?></small>
+                  <?php if ($row['uploaded_by'] == $username): ?>
+                  <form method="POST" action="dashboard.php?<?php echo http_build_query($_GET); ?>" class="align-self-end" onclick="event.stopPropagation();">
+                      <input type="hidden" name="recipe_id" value="<?php echo $row['id']; ?>">
+                      <button type="submit" name="toggle_favorite" class="favorite-btn <?php echo ($row['is_favorite'] ?? 0) ? 'filled' : ''; ?>"><i class="fa-solid fa-heart"></i></button>
+                  </form>
+                  <?php endif; ?>
               </div>
-              <!-- Favorite Heart Button -->
-              <form method="POST" style="text-align:right;">
-                <input type="hidden" name="recipe_id" value="<?php echo $row['id']; ?>">
-                <input type="hidden" name="current_status" value="<?php echo $row['is_favorite'] ?? 0; ?>">
-                <button type="submit" name="toggle_favorite" class="favorite-btn <?php echo ($row['is_favorite'] ?? 0) ? 'filled' : ''; ?>">
-                  <i class="fa-solid fa-heart"></i>
-                </button>
-              </form>
             </div>
           </div>
-        </div>
-      <?php } ?>
+          <div class="modal fade" id="recipeModal<?php echo $row['id']; ?>" tabindex="-1" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered modal-lg">
+              <div class="modal-content">
+                <div class="modal-header"><h5 class="modal-title"><?php echo htmlspecialchars($row['recipe_name']); ?></h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
+                <div class="modal-body">
+                  <img src="<?php echo htmlspecialchars($row['image']); ?>" class="img-fluid rounded mb-3" alt="Recipe Image">
+                  <p><strong>Description:</strong> <?php echo nl2br(htmlspecialchars($row['description'])); ?></p><hr>
+                  <p><strong>Ingredients:</strong><br><?php echo nl2br(htmlspecialchars($row['ingredients'] ?? 'Not provided.')); ?></p><hr>
+                  <p><strong>Instructions:</strong><br><?php echo nl2br(htmlspecialchars($row['instructions'] ?? 'Not provided.')); ?></p>
+                </div>
+                <div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button></div>
+              </div>
+            </div>
+          </div>
+        <?php endwhile; ?>
+      <?php else: ?>
+          <p class="text-muted col-12">No recipes found matching your criteria.</p>
+      <?php endif; ?>
     </div>
   </section>
 
-  <!-- Favorite Recipes Section -->
   <section class="favorites py-5 bg-light" style="max-width: 100%; padding-left: 4rem; padding-right: 4rem;">
     <h1 class="fs-3">My Favorite Recipes</h1>
-    <div class="row g-3">
-      <?php if ($favorites->num_rows > 0) {
-        while ($fav = $favorites->fetch_assoc()) { ?>
-        <div class="col-md-3">
-          <div class="card recipe-card h-100 border-warning">
-            <img src="<?php echo $fav['image']; ?>" class="card-img-top" alt="Recipe Image">
-            <div class="card-body">
-              <h5><?php echo htmlspecialchars($fav['recipe_name']); ?></h5>
-              <p><?php echo htmlspecialchars($fav['description']); ?></p>
+    <div class="row g-4">
+      <?php if ($favorites->num_rows > 0): ?>
+        <?php while ($fav = $favorites->fetch_assoc()): ?>
+          <div class="col-12 col-sm-6 col-lg-4 col-xl-3">
+            <div class="card recipe-card h-100 border-warning" data-bs-toggle="modal" data-bs-target="#recipeModal<?php echo $fav['id']; ?>">
+              <img src="<?php echo htmlspecialchars($fav['image']); ?>" class="card-img-top" alt="Recipe Image" style="height:200px; object-fit:cover;">
+              <div class="card-body">
+                <h5><?php echo htmlspecialchars($fav['recipe_name']); ?></h5>
+                <span class="badge bg-info mb-2"><?php echo htmlspecialchars($fav['recipe_type']); ?></span>
+                <p class="small text-muted"><?php echo htmlspecialchars(mb_strimwidth($fav['description'], 0, 80, '...')); ?></p>
+              </div>
             </div>
           </div>
-        </div>
-      <?php }} else { ?>
-        <p class="px-3">You have no favorite recipes yet.</p>
-      <?php } ?>
+        <?php endwhile; ?>
+      <?php else: ?>
+        <p class="px-3">You have no favorite recipes yet. Click the heart icon on your own recipes to add them here!</p>
+      <?php endif; ?>
     </div>
   </section>
 

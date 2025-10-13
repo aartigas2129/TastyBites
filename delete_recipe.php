@@ -1,37 +1,24 @@
 <?php
 session_start();
 include 'config.php';
+
 if (!isset($_SESSION['username'])) {
-  header("Location: login.php");
-  exit();
+    header("Location: login.php");
+    exit();
 }
 
-$host = "localhost";
-$user = "root";
-$pass = "";
-$db   = "tastybytesdb";
-$conn = new mysqli($host, $user, $pass, $db);
-if ($conn->connect_error) die("Connection failed: " . $conn->connect_error);
+$username = $_SESSION['username'];
+$recipe_id = isset($_GET['id']) ? intval($_GET['id']) : 0;
 
-if (isset($_GET['id'])) {
-  $id = intval($_GET['id']);
-  $username = $_SESSION['username'];
-
-  // Check ownership
-  $check = $conn->prepare("SELECT image FROM recipes WHERE id = ? AND uploaded_by = ?");
-  $check->bind_param("is", $id, $username);
-  $check->execute();
-  $result = $check->get_result();
-
-  if ($result->num_rows > 0) {
-    $recipe = $result->fetch_assoc();
-    if (file_exists($recipe['image'])) unlink($recipe['image']);
-
-    $delete = $conn->prepare("DELETE FROM recipes WHERE id = ? AND uploaded_by = ?");
-    $delete->bind_param("is", $id, $username);
-    $delete->execute();
-  }
+if ($recipe_id > 0) {
+    // Security check: Prepare a statement to delete the recipe ONLY if the ID and username match
+    $stmt = $conn->prepare("DELETE FROM recipes WHERE id = ? AND uploaded_by = ?");
+    $stmt->bind_param("is", $recipe_id, $username);
+    $stmt->execute();
+    $stmt->close();
 }
-header("Location: my_recipe.php");
+
+// Redirect back to the my_recipe page
+header("Location: my_recipe.php?status=deleted");
 exit();
 ?>

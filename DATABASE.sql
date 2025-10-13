@@ -29,3 +29,5 @@ CREATE TABLE favorites (
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
   FOREIGN KEY (recipe_id) REFERENCES recipes(id) ON DELETE CASCADE
 );
+
+ALTER TABLE `recipes` ADD `recipe_type` VARCHAR(50) NOT NULL AFTER `description`;
