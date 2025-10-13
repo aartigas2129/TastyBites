@@ -31,3 +31,13 @@ CREATE TABLE favorites (
 );
 
 ALTER TABLE `recipes` ADD `recipe_type` VARCHAR(50) NOT NULL AFTER `description`;
+
+ALTER TABLE `recipes` DROP COLUMN `is_favorite`;
+
+CREATE TABLE `user_favorites` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `user_id` int(11) NOT NULL,
+  `recipe_id` int(11) NOT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `user_recipe_unique` (`user_id`,`recipe_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
