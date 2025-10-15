@@ -1,10 +1,11 @@
 <?php
 session_start();
 include 'config.php';
-if (!isset($_SESSION['username'])) {
+if (!isset($_SESSION['user_id'])) {
   header("Location: login.php");
   exit();
 }
+$user_id = $_SESSION['user_id'];
 $username = $_SESSION['username'];
 
 // DB connection
@@ -15,7 +16,7 @@ $db   = "tastybytesdb";
 $conn = new mysqli($host, $user, $pass, $db);
 if ($conn->connect_error) die("Connection failed: " . $conn->connect_error);
 
-// --- NEW SEARCH AND FILTER LOGIC for 'My Recipes' ---
+// --- SEARCH AND FILTER LOGIC for 'My Recipes' ---
 $searchQuery = trim($_GET['search_query'] ?? '');
 $filterType = $_GET['type'] ?? 'all';
 
@@ -24,23 +25,18 @@ $sql = "SELECT * FROM recipes WHERE uploaded_by = ?";
 $params = [$username];
 $types = 's';
 
-// Add search query condition if it exists
 if (!empty($searchQuery)) {
     $sql .= " AND recipe_name LIKE ?";
     $params[] = "%" . $searchQuery . "%";
     $types .= 's';
 }
-
-// Add recipe type condition if it exists
 if ($filterType !== 'all') {
     $sql .= " AND recipe_type = ?";
     $params[] = $filterType;
     $types .= 's';
 }
-
 $sql .= " ORDER BY id DESC";
 
-// Prepare and execute the final query
 $stmt = $conn->prepare($sql);
 $stmt->bind_param($types, ...$params);
 $stmt->execute();
@@ -59,54 +55,78 @@ $recipeTypes = ['Breakfast', 'Lunch', 'Dinner', 'Dessert', 'Snack', 'Appetizer',
   <link rel="stylesheet" href="assets/media.css">
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600&family=Felipa&display=swap" rel="stylesheet"/>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.7/dist/css/bootstrap.min.css" rel="stylesheet"/>
+  <style>
+    body { padding-top: 70px; }
+    .recipe-card { cursor: pointer; transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out; }
+    .recipe-card:hover { transform: translateY(-5px); box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+    .carousel-caption { background-color: rgba(0, 0, 0, 0.5); border-radius: .5rem; padding: 1.5rem; }
+  </style>
 </head>
 <body class="position-relative">
 
-  <nav class="px-5 py-2 d-flex nav-xxl align-items-center justify-content-between position-fixed top-0 z-3 bg-light-subtle w-100">
-    <div class="flex-row d-flex align-items-center gap-5 w-75">
-      <div class="flex-row d-flex align-items-center gap-4 title-div">
-        <h1>Tasty Bites</h1>
-        <form method="GET" action="my_recipe.php" class="search-div px-2">
-            <input type="text" name="search_query" id="search-bar" placeholder="Search my recipes..." value="<?php echo htmlspecialchars($searchQuery); ?>"/>
-            <button type="submit" style="background:none; border:none; padding:0;">
-                <img src="assets/icons/search-alt-svgrepo-com.svg" alt="Search" class="search"/>
-            </button>
+  <nav class="navbar navbar-expand-lg bg-light-subtle shadow-sm fixed-top">
+    <div class="container-fluid px-4">
+      <a class="navbar-brand" href="dashboard.php"><h1>Tasty Bites</h1></a>
+      <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#mainNavbar" aria-controls="mainNavbar" aria-expanded="false" aria-label="Toggle navigation">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+      <div class="collapse navbar-collapse" id="mainNavbar">
+        <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+          <li class="nav-item"><a class="nav-link" href="dashboard.php">Home</a></li>
+          <li class="nav-item"><a class="nav-link active" href="my_recipe.php">My Recipes</a></li>
+          <li class="nav-item"><a class="nav-link" href="add_recipe.php">Add Recipe</a></li>
+        </ul>
+        <form class="d-flex mx-auto my-2 my-lg-0" role="search" method="GET" action="my_recipe.php">
+          <input class="form-control me-2" type="search" name="search_query" placeholder="Search my recipes..." aria-label="Search" value="<?php echo htmlspecialchars($searchQuery); ?>">
+          <button class="btn btn-outline-secondary" type="submit">Search</button>
         </form>
+        
+        <div class="navbar-nav ms-lg-3">
+            <li class="nav-item dropdown">
+                <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                    Hello, <?php echo htmlspecialchars($username, ENT_QUOTES); ?>
+                </a>
+                <ul class="dropdown-menu dropdown-menu-end">
+                    <li><a class="dropdown-item" href="edit_profile.php">Edit Profile</a></li>
+                    <li><hr class="dropdown-divider"></li>
+                    <li><a class="dropdown-item text-danger" href="logout.php">Logout</a></li>
+                </ul>
+            </li>
+        </div>
+
       </div>
-      <div class="flex-row d-flex align-items-center div-tabs gap-5">
-        <a href="dashboard.php" class="tabs">Home</a>
-        <a href="my_recipe.php" class="tabs active">My Recipe</a>
-        <a href="add_recipe.php" class="tabs">Add Recipe</a>
-      </div>
-    </div>
-    <div class="px-5 d-flex align-items-center gap-3">
-        <span class="tabs text-nowrap">Hello, <?php echo htmlspecialchars($username, ENT_QUOTES); ?></span>
-        <a href="logout.php" class="btn btn-sm btn-outline-secondary">Logout</a>
     </div>
   </nav>
 
-  <div class="homer mt-5 pt-5">
-    <div class="homer-item-1">
-      <div class="homer-inside-item-1">
-        <h1 class="homer-h1">Your Creations,</h1>
-        <h1 class="homer-h1">Your Flavors.</h1>
-        <p class="homer-para">Manage your uploaded recipes and make changes whenever you like.</p>
-      </div>
-      <div class="homer-inside-item-2 carousel slide" id="carouselExampleIndicators">
-        <div class="carousel-inner mt-4 rounded-4">
-          <div class="carousel-item active"><img src="assets/images/hero.png" class="d-block w-100" alt="Hero 1"></div>
-          <div class="carousel-item"><img src="assets/images/hero-2.jpg" class="d-block w-100" alt="Hero 2"></div>
-          <div class="carousel-item"><img src="assets/images/hero-3.jpg" class="d-block w-100" alt="Hero 3"></div>
+  <div class="container-fluid px-0">
+    <div id="carouselExampleIndicators" class="carousel slide" data-bs-ride="carousel">
+        <div class="carousel-indicators">
+            <button type="button" data-bs-target="#carouselExampleIndicators" data-bs-slide-to="0" class="active" aria-current="true" aria-label="Slide 1"></button>
+            <button type="button" data-bs-target="#carouselExampleIndicators" data-bs-slide-to="1" aria-label="Slide 2"></button>
+            <button type="button" data-bs-target="#carouselExampleIndicators" data-bs-slide-to="2" aria-label="Slide 3"></button>
+        </div>
+        <div class="carousel-inner">
+            <div class="carousel-item active">
+                <img src="https://images.unsplash.com/photo-1512621776951-a57141f2eefd?auto=format&fit=crop&w=1920&q=80" class="d-block w-100" alt="Colorful salad bowl" style="max-height: 400px; object-fit: cover;">
+                <div class="carousel-caption d-none d-md-block"><h1 class="display-4 fw-bold">Your Creations, Your Flavors.</h1><p class="lead my-3">Manage your uploaded recipes, make edits, and keep your personal cookbook organized.</p></div>
+            </div>
+            <div class="carousel-item">
+                <img src="https://images.unsplash.com/photo-1464349153735-7db50ed83c84?auto=format&fit=crop&w=1920&q=80" class="d-block w-100" alt="Pancakes with berries" style="max-height: 400px; object-fit: cover;">
+                <div class="carousel-caption d-none d-md-block"><h1 class="display-4 fw-bold">Rediscover Your Favorites.</h1><p class="lead my-3">Easily find the recipes you love to make again and again.</p></div>
+            </div>
+            <div class="carousel-item">
+                <img src="https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?auto=format&fit=crop&w=1920&q=80" class="d-block w-100" alt="Freshly baked pizza" style="max-height: 400px; object-fit: cover;">
+                <div class="carousel-caption d-none d-md-block"><h1 class="display-4 fw-bold">Plan Your Next Meal.</h1><p class="lead my-3">Keep all your culinary ideas in one place, ready for the kitchen.</p></div>
+            </div>
         </div>
         <button class="carousel-control-prev" type="button" data-bs-target="#carouselExampleIndicators" data-bs-slide="prev"><span class="carousel-control-prev-icon"></span></button>
         <button class="carousel-control-next" type="button" data-bs-target="#carouselExampleIndicators" data-bs-slide="next"><span class="carousel-control-next-icon"></span></button>
-      </div>
     </div>
   </div>
 
-  <section class="py-5" style="max-width: 100%; padding-left: 4rem; padding-right: 4rem;">
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <h3 class="mb-0">My Uploaded Recipes</h3>
+  <section class="py-5 px-3 px-lg-5">
+    <div class="d-flex flex-column flex-md-row justify-content-between align-items-center mb-4">
+        <h3 class="mb-3 mb-md-0">My Uploaded Recipes</h3>
         <form method="GET" class="d-flex align-items-center gap-2">
             <input type="hidden" name="search_query" value="<?php echo htmlspecialchars($searchQuery); ?>">
             <select class="form-select w-auto" name="type" onchange="this.form.submit()">
@@ -117,7 +137,6 @@ $recipeTypes = ['Breakfast', 'Lunch', 'Dinner', 'Dessert', 'Snack', 'Appetizer',
             </select>
         </form>
     </div>
-
     <div class="row g-4">
       <?php if ($result->num_rows > 0): ?>
         <?php while ($row = $result->fetch_assoc()): ?>
@@ -131,14 +150,10 @@ $recipeTypes = ['Breakfast', 'Lunch', 'Dinner', 'Dessert', 'Snack', 'Appetizer',
               </div>
             </div>
           </div>
-
           <div class="modal fade" id="recipeModal<?php echo $row['id']; ?>" tabindex="-1" aria-hidden="true">
             <div class="modal-dialog modal-dialog-centered modal-xl">
               <div class="modal-content">
-                <div class="modal-header">
-                  <h5 class="modal-title"><?php echo htmlspecialchars($row['recipe_name']); ?></h5>
-                  <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
+                <div class="modal-header"><h5 class="modal-title"><?php echo htmlspecialchars($row['recipe_name']); ?></h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
                 <div class="modal-body">
                   <img src="<?php echo htmlspecialchars($row['image']); ?>" class="img-fluid rounded mb-4" alt="Recipe Image">
                   <p><strong>Description:</strong><br><?php echo nl2br(htmlspecialchars($row['description'])); ?></p><hr>
@@ -152,10 +167,9 @@ $recipeTypes = ['Breakfast', 'Lunch', 'Dinner', 'Dessert', 'Snack', 'Appetizer',
               </div>
             </div>
           </div>
-
         <?php endwhile; ?>
       <?php else: ?>
-        <p class="text-muted">You haven't uploaded any recipes matching your criteria.</p>
+        <p class="text-muted col-12">You haven't uploaded any recipes matching your criteria.</p>
       <?php endif; ?>
     </div>
   </section>

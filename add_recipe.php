@@ -2,18 +2,18 @@
 session_start();
 include 'config.php'; 
 
-if (!isset($_SESSION['username'])) {
+if (!isset($_SESSION['user_id'])) {
     header("Location: login.php");
     exit();
 }
+$user_id = $_SESSION['user_id'];
 $username = $_SESSION['username'];
 
-// Database connection
+// DB connection
 $host = "localhost";
 $user = "root";
 $pass = "";
 $db   = "tastybytesdb";
-
 $conn = new mysqli($host, $user, $pass, $db);
 if ($conn->connect_error) {
     die("Connection failed: " . $conn->connect_error);
@@ -36,19 +36,19 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['submit_recipe'])) {
         $stmt = $conn->prepare($sql);
         $stmt->bind_param("sssssss", $recipeName, $description, $recipeType, $ingredients, $instructions, $targetFilePath, $username);
         if ($stmt->execute()) {
-            header("Location: my_recipe.php?status=success"); // Redirect to My Recipes page
+            header("Location: my_recipe.php?status=success");
             exit();
         }
         $stmt->close();
     }
 }
 
-// MODIFIED: Fetch only the current user's recipes for the list
-$sql = "SELECT * FROM recipes WHERE uploaded_by = ? ORDER BY id DESC";
-$stmt = $conn->prepare($sql);
-$stmt->bind_param("s", $username);
-$stmt->execute();
-$recipes = $stmt->get_result();
+// Fetch only the current user's most recent recipes
+$sql_recent = "SELECT * FROM recipes WHERE uploaded_by = ? ORDER BY id DESC LIMIT 3";
+$stmt_recent = $conn->prepare($sql_recent);
+$stmt_recent->bind_param("s", $username);
+$stmt_recent->execute();
+$recipes = $stmt_recent->get_result();
 
 $recipeTypes = ['Breakfast', 'Lunch', 'Dinner', 'Dessert', 'Snack', 'Appetizer', 'Drinks'];
 ?>
@@ -62,44 +62,71 @@ $recipeTypes = ['Breakfast', 'Lunch', 'Dinner', 'Dessert', 'Snack', 'Appetizer',
     <link rel="stylesheet" href="assets/media.css">
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600&family=Felipa&display=swap" rel="stylesheet"/>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.7/dist/css/bootstrap.min.css" rel="stylesheet"/>
+    <style>
+        body { padding-top: 70px; }
+        .carousel-caption {
+            background-color: rgba(0, 0, 0, 0.5);
+            border-radius: .5rem;
+            padding: 1.5rem;
+        }
+    </style>
 </head>
 <body class="position-relative">
 
-<nav class="px-5 py-2 d-flex nav-xxl align-items-center justify-content-between position-fixed top-0 z-3 bg-light-subtle w-100">
-  <div class="flex-row d-flex align-items-center gap-5 w-75">
-    <div class="flex-row d-flex align-items-center gap-4 title-div"><h1>Tasty Bites</h1></div>
-    <div class="flex-row d-flex align-items-center div-tabs gap-5">
-      <a href="dashboard.php" class="tabs">Home</a>
-      <a href="my_recipe.php" class="tabs">My Recipe</a>
-      <a href="add_recipe.php" class="tabs active">Add Recipe</a>
-    </div>
-  </div>
-  <div class="px-5 d-flex align-items-center gap-3">
-    <span class="tabs text-nowrap">Hello, <?php echo htmlspecialchars($username, ENT_QUOTES); ?></span>
-    <a href="logout.php" class="btn btn-sm btn-outline-secondary">Logout</a>
-  </div>
-</nav>
+  <nav class="navbar navbar-expand-lg bg-light-subtle shadow-sm fixed-top">
+    <div class="container-fluid px-4">
+      <a class="navbar-brand" href="dashboard.php"><h1>Tasty Bites</h1></a>
+      <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#mainNavbar" aria-controls="mainNavbar" aria-expanded="false" aria-label="Toggle navigation">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+      <div class="collapse navbar-collapse" id="mainNavbar">
+        <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+          <li class="nav-item"><a class="nav-link" href="dashboard.php">Home</a></li>
+          <li class="nav-item"><a class="nav-link" href="my_recipe.php">My Recipes</a></li>
+          <li class="nav-item"><a class="nav-link active" href="add_recipe.php">Add Recipe</a></li>
+        </ul>
+        
+        <div class="navbar-nav ms-lg-auto">
+            <li class="nav-item dropdown">
+                <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                    Hello, <?php echo htmlspecialchars($username, ENT_QUOTES); ?>
+                </a>
+                <ul class="dropdown-menu dropdown-menu-end">
+                    <li><a class="dropdown-item" href="edit_profile.php">Edit Profile</a></li>
+                    <li><hr class="dropdown-divider"></li>
+                    <li><a class="dropdown-item text-danger" href="logout.php">Logout</a></li>
+                </ul>
+            </li>
+        </div>
 
-<div class="homer mt-5 pt-5">
-  <div class="homer-item-1">
-    <div class="homer-inside-item-1">
-      <h1 class="homer-h1">Share Your Passion.</h1>
-      <h1 class="homer-h1">Inspire Others.</h1>
-      <p class="homer-para">Upload your favorite recipes and build your personal digital cookbook.</p>
-    </div>
-    <div class="homer-inside-item-2 carousel slide" id="carouselExampleIndicators">
-      <div class="carousel-inner mt-4 rounded-4">
-        <div class="carousel-item active"><img src="assets/images/hero.png" class="d-block w-100" alt="Hero 1"></div>
-        <div class="carousel-item"><img src="assets/images/hero-2.jpg" class="d-block w-100" alt="Hero 2"></div>
-        <div class="carousel-item"><img src="assets/images/hero-3.jpg" class="d-block w-100" alt="Hero 3"></div>
       </div>
-      <button class="carousel-control-prev" type="button" data-bs-target="#carouselExampleIndicators" data-bs-slide="prev"><span class="carousel-control-prev-icon"></span></button>
-      <button class="carousel-control-next" type="button" data-bs-target="#carouselExampleIndicators" data-bs-slide="next"><span class="carousel-control-next-icon"></span></button>
+    </div>
+  </nav>
+
+  <div class="container-fluid px-0">
+    <div id="carouselExampleIndicators" class="carousel slide" data-bs-ride="carousel">
+        <div class="carousel-inner">
+            <div class="carousel-item active">
+                <img src="assets/images/hero-2.jpg" class="d-block w-100" alt="Hero 1" style="max-height: 400px; object-fit: cover;">
+                <div class="carousel-caption d-none d-md-block">
+                    <h1 class="display-4 fw-bold">Share Your Passion.</h1>
+                    <p class="lead my-3">Upload your favorite recipes and build your personal digital cookbook.</p>
+                </div>
+            </div>
+            <div class="carousel-item">
+                <img src="assets/images/hero-3.jpg" class="d-block w-100" alt="Hero 2" style="max-height: 400px; object-fit: cover;">
+                <div class="carousel-caption d-none d-md-block">
+                    <h1 class="display-4 fw-bold">Inspire Others.</h1>
+                    <p class="lead my-3">Your unique flavors could become someone else's new favorite dish.</p>
+                </div>
+            </div>
+        </div>
+        <button class="carousel-control-prev" type="button" data-bs-target="#carouselExampleIndicators" data-bs-slide="prev"><span class="carousel-control-prev-icon"></span></button>
+        <button class="carousel-control-next" type="button" data-bs-target="#carouselExampleIndicators" data-bs-slide="next"><span class="carousel-control-next-icon"></span></button>
     </div>
   </div>
-</div>
 
-<section class="py-5 bg-light" style="max-width: 100%; padding-left: 4rem; padding-right: 4rem;">
+<section class="py-5 bg-light px-3 px-lg-5">
     <div class="container-fluid">
         <h3 class="mb-4">Add Your Recipe</h3>
         <div class="card shadow-sm">
@@ -120,14 +147,13 @@ $recipeTypes = ['Breakfast', 'Lunch', 'Dinner', 'Dessert', 'Snack', 'Appetizer',
     </div>
 </section>
 
-<!-- MODIFIED: This section now only shows the user's recipes -->
-<section class="py-5" style="max-width: 100%; padding-left: 4rem; padding-right: 4rem;">
+<section class="py-5 px-3 px-lg-5">
     <h3 class="mb-4">Recently Added by You</h3>
     <div class="row g-4">
         <?php if ($recipes->num_rows > 0): ?>
             <?php while ($row = $recipes->fetch_assoc()): ?>
-            <div class="col-md-4">
-                <div class="card recipe-card h-100 shadow-sm">
+            <div class="col-12 col-sm-6 col-md-4">
+                <div class="card h-100 shadow-sm">
                 <img src="<?php echo htmlspecialchars($row['image']); ?>" class="card-img-top" alt="Recipe Image" style="height: 220px; object-fit: cover;">
                 <div class="card-body">
                     <h5 class="card-title"><?php echo htmlspecialchars($row['recipe_name']); ?></h5>

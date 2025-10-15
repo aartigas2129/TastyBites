@@ -2,14 +2,14 @@
 session_start();
 include 'config.php'; 
 
-if (!isset($_SESSION['user_id'])) { // Check for user_id instead of just username
+if (!isset($_SESSION['user_id'])) {
     header("Location: login.php");
     exit();
 }
 $user_id = $_SESSION['user_id'];
 $username = $_SESSION['username'];
 
-// DB connection
+// DB connection & other PHP logic...
 $host = "localhost";
 $user = "root";
 $pass = "";
@@ -19,38 +19,31 @@ if ($conn->connect_error) {
   die("Connection failed: " . $conn->connect_error);
 }
 
-// --- NEW FAVORITE TOGGLE LOGIC ---
+// Favorite Toggle Logic
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['toggle_favorite'])) {
     $recipeId = intval($_POST['recipe_id']);
-    
-    // Check if the user has already favorited this recipe
     $checkStmt = $conn->prepare("SELECT id FROM user_favorites WHERE user_id = ? AND recipe_id = ?");
     $checkStmt->bind_param("ii", $user_id, $recipeId);
     $checkStmt->execute();
     $result = $checkStmt->get_result();
-    
     if ($result->num_rows > 0) {
-        // It's already favorited, so REMOVE it (un-favorite)
         $deleteStmt = $conn->prepare("DELETE FROM user_favorites WHERE user_id = ? AND recipe_id = ?");
         $deleteStmt->bind_param("ii", $user_id, $recipeId);
         $deleteStmt->execute();
         $deleteStmt->close();
     } else {
-        // It's not favorited, so ADD it (favorite)
         $insertStmt = $conn->prepare("INSERT INTO user_favorites (user_id, recipe_id) VALUES (?, ?)");
         $insertStmt->bind_param("ii", $user_id, $recipeId);
         $insertStmt->execute();
         $insertStmt->close();
     }
     $checkStmt->close();
-    
-    // Redirect to preserve filter state
     $queryString = http_build_query(['search_query' => $_GET['search_query'] ?? '', 'type' => $_GET['type'] ?? 'all']);
     header("Location: dashboard.php?" . $queryString);
     exit();
 }
 
-// --- Fetch a list of the current user's favorite recipe IDs ---
+// Fetch user's favorite IDs
 $favorite_ids = [];
 $favIdStmt = $conn->prepare("SELECT recipe_id FROM user_favorites WHERE user_id = ?");
 $favIdStmt->bind_param("i", $user_id);
@@ -60,7 +53,6 @@ while ($fav_row = $favIdResult->fetch_assoc()) {
     $favorite_ids[] = $fav_row['recipe_id'];
 }
 $favIdStmt->close();
-
 
 // Public search and filter logic
 $searchQuery = trim($_GET['search_query'] ?? '');
@@ -90,10 +82,8 @@ if (!empty($params)) {
 $stmt->execute();
 $recipes = $stmt->get_result();
 
-// --- NEW QUERY for "My Favorite Recipes" section ---
-$fav_stmt = $conn->prepare(
-    "SELECT r.* FROM recipes r JOIN user_favorites uf ON r.id = uf.recipe_id WHERE uf.user_id = ? ORDER BY r.id DESC"
-);
+// Fetch "My Favorite Recipes"
+$fav_stmt = $conn->prepare("SELECT r.* FROM recipes r JOIN user_favorites uf ON r.id = uf.recipe_id WHERE uf.user_id = ? ORDER BY r.id DESC");
 $fav_stmt->bind_param("i", $user_id);
 $fav_stmt->execute();
 $favorites = $fav_stmt->get_result();
@@ -112,56 +102,94 @@ $recipeTypes = ['Breakfast', 'Lunch', 'Dinner', 'Dessert', 'Snack', 'Appetizer',
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.7/dist/css/bootstrap.min.css" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"/>
   <style>
+    body { padding-top: 70px; }
     .favorite-btn { border: none; background: none; cursor: pointer; font-size: 1.3rem; color: #ccc; transition: color 0.2s; }
-    .favorite-btn.filled { color: #dc3545; } /* Red color for filled hearts */
+    .favorite-btn.filled { color: #dc3545; }
     .recipe-card { cursor: pointer; transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out; }
     .recipe-card:hover { transform: translateY(-5px); box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+    .hero-bg {
+        position: relative;
+        background-image: url('https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&w=1920');
+        background-size: cover;
+        background-position: center;
+        color: #fff;
+    }
+    .hero-bg::before {
+        content: '';
+        position: absolute;
+        top: 0; right: 0; bottom: 0; left: 0;
+        background-color: rgba(0, 0, 0, 0.6);
+        z-index: 1;
+    }
+    .hero-bg .container {
+        position: relative;
+        z-index: 2;
+    }
   </style>
 </head>
 <body>
-  <nav class="px-5 py-2 d-flex nav-xxl align-items-center justify-content-between position-fixed top-0 z-3 bg-light-subtle w-100">
-    <div class="flex-row d-flex align-items-center gap-5 w-75">
-      <div class="flex-row d-flex align-items-center gap-4 title-div">
-        <h1>Tasty Bites</h1>
-        <form method="GET" action="dashboard.php" class="search-div px-2">
-            <input type="text" name="search_query" id="search-bar" placeholder="Search all recipes..." value="<?php echo htmlspecialchars($searchQuery); ?>"/>
-            <button type="submit" style="background:none; border:none; padding:0;"><img src="assets/icons/search-alt-svgrepo-com.svg" alt="Search" class="search"/></button>
+
+  <nav class="navbar navbar-expand-lg bg-light-subtle shadow-sm fixed-top">
+    <div class="container-fluid px-4">
+      <a class="navbar-brand" href="dashboard.php"><h1>Tasty Bites</h1></a>
+      <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#mainNavbar" aria-controls="mainNavbar" aria-expanded="false" aria-label="Toggle navigation">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+      <div class="collapse navbar-collapse" id="mainNavbar">
+        <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+          <li class="nav-item"><a class="nav-link active" href="dashboard.php">Home</a></li>
+          <li class="nav-item"><a class="nav-link" href="my_recipe.php">My Recipes</a></li>
+          <li class="nav-item"><a class="nav-link" href="add_recipe.php">Add Recipe</a></li>
+        </ul>
+        <form class="d-flex mx-auto my-2 my-lg-0" role="search" method="GET" action="dashboard.php">
+          <input class="form-control me-2" type="search" name="search_query" placeholder="Search recipes..." aria-label="Search" value="<?php echo htmlspecialchars($searchQuery); ?>">
+          <button class="btn btn-outline-secondary" type="submit">Search</button>
         </form>
+        
+        <div class="navbar-nav ms-lg-3">
+            <li class="nav-item dropdown">
+                <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                    Hello, <?php echo htmlspecialchars($username, ENT_QUOTES); ?>
+                </a>
+                <ul class="dropdown-menu dropdown-menu-end">
+                    <li><a class="dropdown-item" href="edit_profile.php">Edit Profile</a></li>
+                    <li><hr class="dropdown-divider"></li>
+                    <li><a class="dropdown-item text-danger" href="logout.php">Logout</a></li>
+                </ul>
+            </li>
+        </div>
+
       </div>
-      <div class="flex-row d-flex align-items-center div-tabs gap-5">
-        <a href="dashboard.php" class="tabs active">Home</a>
-        <a href="my_recipe.php" class="tabs">My Recipe</a>
-        <a href="add_recipe.php" class="tabs">Add Recipe</a>
-      </div>
-    </div>
-    <div class="px-5 d-flex align-items-center gap-3">
-      <span class="tabs text-nowrap">Hello, <?php echo htmlspecialchars($username, ENT_QUOTES); ?></span>
-      <a href="logout.php" class="btn btn-sm btn-outline-secondary">Logout</a>
     </div>
   </nav>
 
-  <div class="homer mt-5 pt-5">
-    <div class="homer-item-1">
-      <div class="homer-inside-item-1">
-        <h1 class="homer-h1">Your Favorite Food.</h1>
-        <h1 class="homer-h1">Make it Good.</h1>
-        <p class="homer-para">Discover, cook, and share recipes with the Tasty Bites community.</p>
-      </div>
-      <div class="homer-inside-item-2 carousel slide" id="carouselExampleIndicators">
-        <div class="carousel-inner mt-4 rounded-4">
-          <div class="carousel-item active"><img src="assets/images/hero.png" class="d-block w-100" alt="Hero 1"></div>
-          <div class="carousel-item"><img src="assets/images/hero-2.jpg" class="d-block w-100" alt="Hero 2"></div>
-          <div class="carousel-item"><img src="assets/images/hero-3.jpg" class="d-block w-100" alt="Hero 3"></div>
+  <div class="hero-bg">
+    <div class="container px-4 py-5">
+        <div class="row align-items-center g-5 py-5">
+            <div class="col-lg-6">
+                <h1 class="display-4 fw-bold lh-1 mb-3">Your Favorite Food.</h1>
+                <h1 class="display-4 fw-bold lh-1 mb-3">Make it Good.</h1>
+                <p class="lead">Discover, cook, and share recipes with the Tasty Bites community. Find inspiration for your next meal and connect with food lovers from around the world.</p>
+            </div>
+            <div class="col-lg-6">
+                <div id="carouselExampleIndicators" class="carousel slide rounded-4 shadow-lg" data-bs-ride="carousel">
+                    <div class="carousel-inner rounded-4">
+                        <div class="carousel-item active"><img src="assets/images/hero.png" class="d-block w-100" alt="Hero 1"></div>
+                        <div class="carousel-item"><img src="assets/images/hero-2.jpg" class="d-block w-100" alt="Hero 2"></div>
+                        <div class="carousel-item"><img src="assets/images/hero-3.jpg" class="d-block w-100" alt="Hero 3"></div>
+                    </div>
+                    <button class="carousel-control-prev" type="button" data-bs-target="#carouselExampleIndicators" data-bs-slide="prev"><span class="carousel-control-prev-icon"></span></button>
+                    <button class="carousel-control-next" type="button" data-bs-target="#carouselExampleIndicators" data-bs-slide="next"><span class="carousel-control-next-icon"></span></button>
+                </div>
+            </div>
         </div>
-        <button class="carousel-control-prev" type="button" data-bs-target="#carouselExampleIndicators" data-bs-slide="prev"><span class="carousel-control-prev-icon"></span></button>
-        <button class="carousel-control-next" type="button" data-bs-target="#carouselExampleIndicators" data-bs-slide="next"><span class="carousel-control-next-icon"></span></button>
-      </div>
     </div>
   </div>
 
-  <section class="discover py-5" style="max-width: 100%; padding-left: 4rem; padding-right: 4rem;">
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <h3 class="mb-0">Discover New Recipes</h3>
+
+  <section class="discover py-5 px-3 px-lg-5">
+    <div class="d-flex flex-column flex-md-row justify-content-between align-items-center mb-4">
+        <h3 class="mb-3 mb-md-0">Discover New Recipes</h3>
         <form method="GET" class="d-flex align-items-center gap-2">
             <input type="hidden" name="search_query" value="<?php echo htmlspecialchars($searchQuery); ?>">
             <select class="form-select w-auto" name="type" onchange="this.form.submit()">
@@ -198,19 +226,14 @@ $recipeTypes = ['Breakfast', 'Lunch', 'Dinner', 'Dessert', 'Snack', 'Appetizer',
           <div class="modal fade" id="recipeModal<?php echo $row['id']; ?>" tabindex="-1" aria-hidden="true">
             <div class="modal-dialog modal-dialog-centered modal-lg">
                 <div class="modal-content">
-                    <div class="modal-header">
-                        <h5 class="modal-title"><?php echo htmlspecialchars($row['recipe_name']); ?></h5>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                    </div>
+                    <div class="modal-header"><h5 class="modal-title"><?php echo htmlspecialchars($row['recipe_name']); ?></h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
                     <div class="modal-body">
                         <img src="<?php echo htmlspecialchars($row['image']); ?>" class="img-fluid rounded mb-3" alt="Recipe Image">
                         <p><strong>Description:</strong> <?php echo nl2br(htmlspecialchars($row['description'])); ?></p><hr>
                         <p><strong>Ingredients:</strong><br><?php echo nl2br(htmlspecialchars($row['ingredients'] ?? 'Not provided.')); ?></p><hr>
                         <p><strong>Instructions:</strong><br><?php echo nl2br(htmlspecialchars($row['instructions'] ?? 'Not provided.')); ?></p>
                     </div>
-                    <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-                    </div>
+                    <div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button></div>
                 </div>
             </div>
           </div>
@@ -221,8 +244,8 @@ $recipeTypes = ['Breakfast', 'Lunch', 'Dinner', 'Dessert', 'Snack', 'Appetizer',
     </div>
   </section>
 
-  <section class="favorites py-5 bg-light" style="max-width: 100%; padding-left: 4rem; padding-right: 4rem;">
-    <h1 class="fs-3">My Favorite Recipes</h1>
+  <section class="favorites py-5 bg-light px-3 px-lg-5">
+    <h3 class="mb-4">My Favorite Recipes</h3>
     <div class="row g-4">
       <?php if ($favorites->num_rows > 0): ?>
         <?php while ($fav = $favorites->fetch_assoc()): ?>
